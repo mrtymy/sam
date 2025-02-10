@@ -1,6 +1,5 @@
-require('electron-reload')(__dirname);
 const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path-browserify');
+const path = require('path');
 const { exec } = require('child_process');
 
 // Steam'in yüklü olduğu doğru yolu belirle
@@ -18,43 +17,52 @@ function createWindow() {
         }
     });
 
+    // Derlenmiş CSS dosyasını yükleyelim
+    mainWindow.webContents.on('did-finish-load', () => {
+        const cssFilePath = path.join(__dirname, 'dist/styles.css'); // SCSS'in derlendiği CSS dosyası
+        mainWindow.webContents.insertCSS(cssFilePath);
+    });
+
+    mainWindow.webContents.openDevTools(); // DevTools'u açar
     mainWindow.loadFile('index.html');
 }
 
-// Steam'i başlatmak için olay dinleyicisi
-ipcMain.on('launch-steam', (event, username, password) => {
-  const command = `"${steamPath}" -cafeapplaunch -noverifyfiles -login ${username} ${password}`;
-  console.log(`Executing command: ${command}`);
-  exec(command, (error, stdout, stderr) => {
-      if (error) {
-          console.error(`Error launching Steam: ${error.message}`);
-          console.error(`Error stack trace: ${error.stack}`); // Hata yığını eklendi
-          return;
-      }
-      if (stderr) {
-          console.error(`stderr: ${stderr}`);
-          return;
-      }
-      console.log(`stdout: ${stdout}`);
-  });
-});
+app.whenReady().then(() => {
+    createWindow();
 
-ipcMain.on('kill-steam', () => {
-  console.log('Killing steam.exe process');
-  exec('taskkill /IM steam.exe /F', (error, stdout, stderr) => {
-      if (error) {
-          console.error(`Error killing steam.exe: ${error.message}`);
-          return;
-      }
-      if (stderr) {
-          console.error(`stderr: ${stderr}`);
-          return;
-      }
-      console.log(`stdout: ${stdout}`);
-  });
-});
+    // Steam'i başlatmak için olay dinleyicisi
+    ipcMain.on('launch-steam', (event, username, password) => {
+        const command = `"${steamPath}" -cafeapplaunch -noverifyfiles -login ${username} ${password}`;
+        console.log(`Executing command: ${command}`);
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error launching Steam: ${error.message}`);
+                console.error(`Error stack trace: ${error.stack}`); // Hata yığını eklendi
+                return;
+            }
+            if (stderr) {
+                console.error(`stderr: ${stderr}`);
+                return;
+            }
+            console.log(`stdout: ${stdout}`);
+        });
+    });
 
-app.whenReady().then(createWindow);
+    ipcMain.on('kill-steam', () => {
+        console.log('Killing steam.exe process');
+        exec('taskkill /IM steam.exe /F', (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error killing steam.exe: ${error.message}`);
+                return;
+            }
+            if (stderr) {
+                console.error(`stderr: ${stderr}`);
+                return;
+            }
+            console.log(`stdout: ${stdout}`);
+        });
+    });
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
