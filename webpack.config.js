@@ -1,21 +1,11 @@
 const path = require('path');
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = {
   entry: './src/app.mjs',
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
-  },
-  watchOptions: {
-    ignored: [
-      '**/node_modules',
-      '**/.git',
-      'C:/System Volume Information',
-      'C:/pagefile.sys',
-      'C:/swapfile.sys',
-      'C:/hiberfil.sys',
-      'C:/DumpStack.log.tmp'
-    ]
   },
   module: {
     rules: [
@@ -28,14 +18,27 @@ module.exports = {
             presets: ['@babel/preset-env', '@babel/preset-react']
           }
         }
+      },
+      {
+        test: /\.css$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader'
+        ],
+      },
+      {
+        test: /\.scss$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          'sass-loader'
+        ],
       }
     ]
   },
-  resolve: {
-    fallback: {
-      "path": require.resolve("path-browserify")
-    }
-  }
+  plugins: [
+    new MiniCssExtractPlugin({
+      filename: "style.css"
+    })
+  ]
 };
-
-  
