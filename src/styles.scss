@@ -1,0 +1,98 @@
+/* Global Container */
+.container {
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Genel Kart Stili */
+.card, .game-card {  /* Kart için ortak stil */
+  background-color: #1c1c1c;  /* Arka plan rengi */
+  padding: 20px;
+  border-radius: 10px;  /* Köşeleri yuvarla */
+  text-align: center;
+  color: #fff;  /* Beyaz metin rengi */
+  margin: 0 20px;  /* Kartlar arasında boşluk bırak */
+
+  .game-title, h5 {  /* Hem game-title hem de card başlıkları */
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .game-image, img {  /* Oyun resimleri */
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .card-body {
+    padding: 10px;
+  }
+}
+
+/* Account Listesi */
+.account-list, .accounts {
+  list-style-type: none;
+  padding: 0;
+
+  li {
+    display: flex;
+    justify-content: space-between;  /* Elemanları iki yana yasla */
+    align-items: center;  /* Aynı hizaya getir */
+    margin-bottom: 10px;
+
+    .account-name {
+      font-size: 0.8rem;  /* Hesap adının boyutu */
+      font-weight: normal;  /* Kalın yazı */
+      color: #fff;
+      padding: 5px 10px;  /* Sabit iç boşluk */
+      border-radius: 4px;  /* Oval köşeler */
+      background-color: #8e21a3;  /* Arka plan turuncu */
+      width: 200px;  /* Sabit genişlik */
+      height: auto;  /* Sabit yükseklik */
+      text-align: center;  /* Metni ortala */
+      overflow: hidden;  /* Taşan metni gizle */
+      white-space: nowrap;  /* Tek satır yap */
+      text-overflow: ellipsis;  /* Üç nokta ile kesme */
+      transition: background-color 0.3s ease;
+
+      &:hover {
+        background-color: #22e6c5;  /* Hover sırasında arka plan rengi */
+      }
+    }
+
+    .status {
+      font-size: 0.8rem;  /* Hesap adının boyutu */
+      font-weight: normal;  /* Kalın yazı */
+      color: #fff;
+      padding: 5px 10px;  /* Sabit iç boşluk */
+      border-radius: 4px;  /* Oval köşeler */
+      background-color: #f39c12;  /* Arka plan turuncu */
+      width: 100px;  /* Sabit genişlik */
+      height: auto;  /* Sabit yükseklik */
+      text-align: center;  /* Metni ortala */
+      overflow: hidden;  /* Taşan metni gizle */
+      white-space: nowrap;  /* Tek satır yap */
+      text-overflow: ellipsis;  /* Üç nokta ile kesme */
+      transition: background-color 0.3s ease;
+
+      &.online {
+        background-color: #8e21a3;  /* Online hesap rengi */
+      }
+
+      &.offline {
+        background-color: #5cdc35;  /* Offline hesap rengi */
+      }
+    }
+  }
+}
+
+/* Slider için gerekli stiller */
+.slick-slide {
+  padding: 10px;
+}
+
+.slick-prev:before,
+.slick-next:before {
+  color: #fff;  /* Slider okları beyaz */
+}

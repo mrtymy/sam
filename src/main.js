@@ -1,5 +1,6 @@
+require('electron-reload')(__dirname);
 const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
+const path = require('path-browserify');
 const { exec } = require('child_process');
 
 // Steam'in yüklü olduğu doğru yolu belirle

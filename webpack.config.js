@@ -6,6 +6,17 @@ module.exports = {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
   },
+  watchOptions: {
+    ignored: [
+      '**/node_modules',
+      '**/.git',
+      'C:/System Volume Information',
+      'C:/pagefile.sys',
+      'C:/swapfile.sys',
+      'C:/hiberfil.sys',
+      'C:/DumpStack.log.tmp'
+    ]
+  },
   module: {
     rules: [
       {

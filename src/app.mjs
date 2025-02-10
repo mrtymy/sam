@@ -1,6 +1,11 @@
+import Slider from 'react-slick';
+import 'slick-carousel/slick/slick.css';
+import 'slick-carousel/slick/slick-theme.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { API_BASE_URL } from '../config.js';  // Ana dizindeki yapılandırma dosyasını içe aktar
+import { API_BASE_URL } from '../config.js';
+import './styles.scss';
+import GameCard from './GameCard.js'; // GameCard'ı import ediyoruz
 
 function App() {
     const [games, setGames] = useState([]);
@@ -8,181 +13,261 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeAccount, setActiveAccount] = useState(null);
-    const [isLoggingOut, setIsLoggingOut] = useState(false); // Logout animasyonu için state
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
     useEffect(() => {
-        fetchData();
+        const token = localStorage.getItem('token');
+        if (token) {
+            setIsLoggedIn(true);
+            fetchData(token);
+        } else {
+            setIsLoggedIn(false);
+        }
     }, []);
 
-    const fetchData = async () => {
+    const handleLogin = async (event) => {
+        event.preventDefault();
         try {
-            const response = await fetch(`${API_BASE_URL}?action=getGamesAndAccounts`);
-            if (!response.ok) throw new Error('Network response was not ok');
+            const response = await fetch(`${API_BASE_URL}?action=login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ email, password })
+            });
             const data = await response.json();
-            console.log('Fetched data:', data);
-            
+            if (data.success) {
+                localStorage.setItem('token', data.token);
+                setIsLoggedIn(true);
+                fetchData(data.token);
+            } else {
+                setError(data.error);
+            }
+        } catch (error) {
+            setError('Login hatası: ' + error.message);
+        }
+    };
+
+    const fetchData = async (token) => {
+        try {
+            if (!token) {
+                token = localStorage.getItem('token');
+            }
+            if (!token) {
+                throw new Error('User not logged in');
+            }
+
+            const response = await fetch(`${API_BASE_URL}?action=getGamesAndAccounts`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
             setGames(data.games);
             setAccounts(data.accounts);
 
-            const activeAcc = data.accounts.find(acc => acc.status === "1");
+            const activeAcc = data.accounts ? data.accounts.find(acc => acc.status === 1) : null;
             if (activeAcc) {
                 setActiveAccount(activeAcc.username);
             }
         } catch (error) {
-            console.error('Error fetching data:', error);
             setError('Error fetching data: ' + error.message);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleLogin = async (username, password) => {
-        if (activeAccount) {
-            alert('Zaten bir hesap kullanıyorsunuz! Lütfen önce çıkış yapın.');
-            return;
-        }
-    
-        console.log('handleLogin fonksiyonu çağrıldı!');
-        console.log('Username:', username);
-        console.log('Password:', password);
-    
-        if (!username || !password) {
-            console.error('Username or password is missing.');
-            setError('Username or password is missing.');
-            return;
-        }
-    
+    const handleSteamLogin = async (username, password) => {
+        window.electronAPI.launchSteam(username, password);
+
         try {
-            const response = await fetch(`${API_BASE_URL}?action=login`, {
+            const response = await fetch(`${API_BASE_URL}?action=updateAccountStatus`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ username, password })
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: new URLSearchParams({ username, status: "1" }) // Hesabı online yap
             });
-    
+
             const data = await response.json();
-            console.log('Login API yanıtı:', data);
-    
             if (data.success) {
-                console.log('Login başarılı.');
-                setAccounts(prevAccounts =>
-                    prevAccounts.map(acc => 
-                        acc.username === username 
-                        ? { ...acc, status: "1" } 
-                        : acc
-                    )
-                );
-                setActiveAccount(username);
-                window.electronAPI.launchSteam(username, password); // Burada tetikleniyor
+                fetchData();
             } else {
-                console.error('Login failed:', data.error || 'No error message');
-                setError(data.error || 'Login failed');
+                console.error('Account status update failed:', data.error);
             }
         } catch (error) {
-            console.error('Error logging in:', error);
-            setError('Error logging in: ' + error.message);
+            console.error('Error updating account status:', error);
         }
+
+        // Her 10 saniyede Steam'i ve login değişimini kontrol et
+        setInterval(async () => {
+            const steamRunning = await checkSteamRunning();
+            const loginChanged = await checkSteamLoginChange();
+
+            if (!steamRunning || loginChanged) {
+                console.log('Steam çalışmıyor veya kullanıcı değişti, hesap boşa düşüyor.');
+
+                // Steam açılmadı veya login değiştiyse hesabı boşa düşür
+                try {
+                    const response = await fetch(`${API_BASE_URL}?action=updateAccountStatus`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: new URLSearchParams({ username, status: "0" }) // Hesabı offline yap
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        fetchData(); // Veriyi güncelle
+                    } else {
+                        console.error('Failed to reset account status:', data.error);
+                    }
+                } catch (error) {
+                    console.error('Error resetting account status:', error);
+                }
+            }
+        }, 10000); // Her 10 saniyede bir kontrol et
     };
-    
 
-    const handleLogout = async () => {
-        setIsLoggingOut(true); // Animasyonu başlat
-        window.electronAPI.killSteam(); // Steam'i kapat
-
-        // Veritabanını güncellemek için biraz gecikme ekleyelim
-        setTimeout(async () => {
+    const handleSteamLogout = async () => {
+        if (activeAccount) {
             try {
-                const response = await fetch(`${API_BASE_URL}?action=logout`, {
+                const response = await fetch(`${API_BASE_URL}?action=updateAccountStatus`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({ username: activeAccount })
+                    body: new URLSearchParams({ username: activeAccount, status: 0 })
                 });
 
                 const data = await response.json();
                 if (data.success) {
-                    console.log('Logout başarılı.');
-                    setAccounts(prevAccounts =>
-                        prevAccounts.map(acc => 
-                            acc.username === activeAccount 
-                            ? { ...acc, status: "0" } 
-                            : acc
-                        )
-                    );
+                    window.electronAPI.killSteam();
                     setActiveAccount(null);
+                    setAccounts(accounts.map(acc =>
+                        acc.username === activeAccount ? { ...acc, status: 0 } : acc
+                    ));
                 } else {
-                    console.error('Logout failed:', data.error || 'No error message');
-                    setError(data.error || 'Logout failed');
+                    console.error('DB durumu güncellenemedi:', data.error);
                 }
             } catch (error) {
-                console.error('Error logging out:', error);
-                setError('Error logging out: ' + error.message);
-            } finally {
-                setIsLoggingOut(false); // Animasyonu durdur
+                console.error('Logout hatası:', error);
             }
-        }, 0); // Gecikme süresini 0 yaparak işlemi hemen başlatıyoruz
+        }
     };
+
+    // Steam'in çalışıp çalışmadığını kontrol eden fonksiyon
+    const checkSteamRunning = () => {
+        return new Promise((resolve) => {
+            window.electronAPI.checkSteamProcess((isRunning) => {
+                resolve(isRunning); // Eğer Steam çalışıyorsa true döner
+            });
+        });
+    };
+
+    // Steam login değişimini kontrol eden fonksiyon
+    const checkSteamLoginChange = () => {
+        return new Promise((resolve) => {
+            window.electronAPI.checkSteamLoginChange((hasChanged) => {
+                resolve(hasChanged); // Eğer login değiştiyse true döner
+            });
+        });
+    };
+
+    // Slider ayarları
+    const settings = {
+        dots: true,
+        infinite: true,
+        speed: 500,
+        slidesToShow: 3,
+        slidesToScroll: 1,
+        autoplay: true,  // Otomatik kaydırmayı ekliyoruz
+        autoplaySpeed: 3000,  // Otomatik kaydırma hızı
+        centerMode: true,
+        centerPadding: '0px',
+        focusOnSelect: true,
+        responsive: [
+            {
+                breakpoint: 768,
+                settings: {
+                    slidesToShow: 1,
+                },
+            },
+        ],
+    };
+
+    if (!isLoggedIn) {
+        return (
+            <div className="container mt-5">
+                <h2>Login to Steam Account Manager</h2>
+                {error && <p className="alert alert-danger">{error}</p>}
+                <div className="mb-3">
+                    <label>Email:</label>
+                    <input
+                        type="email"
+                        className="form-control"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Enter your email"
+                    />
+                </div>
+                <div className="mb-3">
+                    <label>Password:</label>
+                    <input
+                        type="password"
+                        className="form-control"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                    />
+                </div>
+                <button className="btn btn-primary" onClick={handleLogin}>Login</button>
+            </div>
+        );
+    }
 
     return (
         <div className="container mt-5">
             <h1>Steam Account Manager</h1>
             {error && <p className="alert alert-danger">{error}</p>}
+
+            {activeAccount && (
+                <button className="btn btn-danger mb-3" onClick={handleSteamLogout}>
+                    Hesaptan Çık
+                </button>
+            )}
+
             {isLoading ? (
                 <p>Loading games...</p>
             ) : (
-                <div className="row">
-                    {games.map(game => (
-                        <GameCard 
-                            key={game.id} 
-                            game={game} 
-                            accounts={accounts} 
-                            handleLogin={handleLogin} 
-                            activeAccount={activeAccount} 
-                        />
-                    ))}
-                </div>
+                <Slider {...settings}>
+                    {games.length > 0 ? (
+                        games.map(game => (
+                            <GameCard
+                                key={game.id}
+                                game={game}
+                                gameImage={game.imageUrl}  // Resim URL'si buradan geliyor
+                                accounts={accounts}
+                                activeAccount={activeAccount}
+                                handleSteamLogin={handleSteamLogin}
+                            />
+                        ))
+                    ) : (
+                        <p>No games found.</p>
+                    )}
+                </Slider>
             )}
-            <div className="logout-btn-container">
-                <button className="btn btn-secondary mt-3" onClick={handleLogout} disabled={isLoggingOut}>
-                    Logout from {activeAccount}
-                </button>
-                {isLoggingOut && <div className="loading-animation"></div>} {/* Yüklenme animasyonu */}
-            </div>
         </div>
     );
 }
 
-const GameCard = ({ game, accounts, handleLogin, activeAccount }) => (
-    <div className="col-md-4">
-        <div className="card mb-4 shadow-sm">
-            <img src={game.image_url} className="card-img-top" alt={game.name} />
-            <div className="card-body">
-                <h5 className="card-title">{game.name}</h5>
-                <p className="card-text">Available Accounts:</p>
-                <ul>
-                    {accounts
-                        .filter(acc => acc.game_id === game.id)
-                        .map(acc => (
-                            <li key={acc.id} className="d-flex align-items-center">
-                                <button 
-                                    className="btn btn-primary btn-sm account-btn ms-2" 
-                                    onClick={() => handleLogin(acc.username, acc.password)}
-                                    disabled={acc.status === "1" || activeAccount}
-                                >
-                                    {acc.username}
-                                </button>
-                                <span 
-                                    className={`status-label ms-2 ${acc.status === "1" ? 'online' : 'offline'}`}
-                                >
-                                    {acc.status === "1" ? 'Online' : 'Offline'}
-                                </span>
-                            </li>
-                        ))}
-                </ul>
-            </div>
-        </div>
-    </div>
-);
-
 // React 18 API'si ile kök oluşturun ve bileşeni render edin
 const rootElement = document.getElementById('app');
-const root = ReactDOM.createRoot(rootElement); 
+const root = ReactDOM.createRoot(rootElement);
 root.render(<App />);
